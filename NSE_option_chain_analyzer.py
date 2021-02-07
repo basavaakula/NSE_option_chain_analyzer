@@ -12,11 +12,13 @@ from datetime import datetime
 
 class NSE:
     def __init__(self,window: Tk)->None:
+        self.red: str = "#e53935"
+        self.green: str = "#00e676"
         self.df: pd.DataFrame = pd.DataFrame()
         self.sheet_col_hdrs: Tuple[str,str] = ('Stocks','ATM')
         self.hdr: Dict[str, str] = {'user-agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 \
                                 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36','accept-language':'en-US,en;q=0.9'}
-        self.stock_symbs: List[str] = [' ','AARTIIND', 'ACC', 'ADANIENT', 'ADANIPORTS', 'AMARAJABAT', 'AMBUJACEM', 'APOLLOHOSP',
+        self.stock_symbs: List[str] = ['AARTIIND', 'ACC', 'ADANIENT', 'ADANIPORTS', 'AMARAJABAT', 'AMBUJACEM', 'APOLLOHOSP',
                                   'APOLLOTYRE', 'ASHOKLEY',
                                   'ASIANPAINT', 'AUROPHARMA', 'AXISBANK', 'BAJAJ-AUTO', 'BAJAJFINSV', 'BAJFINANCE',
                                   'BALKRISIND', 'BANDHANBNK',
@@ -34,7 +36,7 @@ class NSE:
                                   'INFY', 'IOC',
                                   'ITC', 'JINDALSTEL', 'JSWSTEEL', 'JUBLFOOD', 'KOTAKBANK','LALPATHLAB',
                                   'LICHSGFIN', 'LT', 'LUPIN',
-                                  'M&M', 'M&MFIN', 'MANAPPURAM', 'MARICO', 'MARUTI', 'MCDOWELL-N', 'MFSL', 'MGL',
+                                  'MANAPPURAM', 'MARICO', 'MARUTI', 'MCDOWELL-N', 'MFSL', 'MGL',
                                   'MINDTREE', 'MOTHERSUMI', 'MRF',
                                   'MUTHOOTFIN', 'NATIONALUM', 'NAUKRI', 'NESTLEIND', 'NMDC', 'NTPC', 'ONGC', 'PAGEIND',
                                   'PEL', 'PETRONET', 'PFC',
@@ -44,9 +46,9 @@ class NSE:
                                   'TATACONSUM', 'TATAMOTORS',
                                   'TATAPOWER', 'TATASTEEL', 'TCS', 'TECHM', 'TITAN', 'TORNTPHARM', 'TORNTPOWER',
                                   'TVSMOTOR', 'UBL', 'ULTRACEMCO',
-                                  'UPL', 'VEDL', 'VOLTAS', 'WIPRO', 'ZEEL']
-        self.stock_symbs: List[str] = ['INFY','UPL', 'VEDL', 'VOLTAS', 'WIPRO', 'ZEEL']
-        #self.stock_symbs: List[str] = ['INFY']
+                                  'UPL', 'VEDL', 'VOLTAS', 'WIPRO']
+        #self.stock_symbs: List[str] = ['INFY','UPL', 'VEDL', 'VOLTAS', 'WIPRO', 'ZEEL']
+        #self.stock_symbs: List[str] = ['ZEEL']
         self.session = requests.Session()
         self.df['Stocks'] = self.stock_symbs
         self.expiry_date: String = ""
@@ -56,22 +58,29 @@ class NSE:
     
     def refresh_data(self)->None:
         timee = datetime.now().strftime("%H:%M:%S") 
-        self.get_live_stock_price()
+        #self.get_live_stock_price()
+        self.append_df_with_OC()
         self.populate_sheet1()
-        self.stock_combo_box.configure(state='normal')
+        self.stock_combo_box.configure(state='readonly')
+        for i in range(self.sheet.get_total_rows()):
+            pcr = float(self.sheet.get_cell_data(i,3))
+            if(pcr>1.):
+                self.sheet.highlight_cells(row=i, column=3, bg=self.green)
+            else:
+                self.sheet.highlight_cells(row=i, column=3, bg=self.red)
+        self.sh_window.mainloop()
     
     def set_sheet(self)->None:
         #self.df = self.df[self.df['Current Price'].notna()]
-        self.append_df_with_OC()
         if(self.sh_frame):
             self.sh_frame.destroy()
         self.sh_frame: Frame = Frame(self.sh_window)
         self.sh_frame.rowconfigure(2, weight=1)
         self.sh_frame.columnconfigure(0, weight=1)
         self.sh_frame.pack(anchor=N,fill="both", expand=True)
-        self.sheet: tksheet.Sheet = tksheet.Sheet(self.sh_frame, column_width=85, align="center",
+        self.sheet: tksheet.Sheet = tksheet.Sheet(self.sh_frame, column_width=110, align="center",
                                                   headers = list(self.df.columns), 
-                                                  header_font=("TkDefaultFont", 9, "bold"),
+                                                  header_font=("TkDefaultFont", 10, "bold"),
                                                   empty_horizontal=0, empty_vertical=20, header_height=35)
         self.sheet.enable_bindings(
             ("toggle_select", "drag_select", "column_select", "row_select", "column_width_resize",
@@ -98,7 +107,7 @@ class NSE:
         self.set_sheet()
         for col in enumerate(sub_df.columns):
             self.sheet.set_column_data(col[0],values=sub_df[col[1]])
-        self.sh_window.mainloop()
+
     
     def populate_sheet1(self)->None:
         sub_df: pd.DataFrame = pd.DataFrame()   
@@ -142,9 +151,9 @@ class NSE:
         
         stock_symb_var: StringVar = StringVar()
         stock_symb_var.set(" ")
-        lbl_stock_symb: Label = Label(top_frame,text='Stock symbol',justify=LEFT)
+        lbl_stock_symb: Label = Label(top_frame,text='Stock symbol',justify=LEFT,font=("TkDefaultFont", 10, "bold"))
         lbl_stock_symb.grid(row=0,column=0,sticky=N+S+W)
-        self.stock_combo_box = Combobox(top_frame,width=5,textvariable=stock_symb_var)
+        self.stock_combo_box = Combobox(top_frame,width=30,textvariable=stock_symb_var)
         self.stock_combo_box.grid(row=0, column=1, sticky=N + S + E + W)
         self.stock_combo_box['values'] = self.stock_symbs
         self.stock_combo_box.bind('<<ComboboxSelected>>', self.populate_sheet)
@@ -152,21 +161,19 @@ class NSE:
         
         date_var: StringVar = StringVar()
         date_var.set(" ")
-        lbl_exp_date: Label = Label(top_frame,text='Expiry date',justify=LEFT)
-        lbl_exp_date.grid(row=1,column=0,sticky=N+S+W)
-        self.date_combo_box = Combobox(top_frame,width=10,textvariable=date_var) 
-        self.date_combo_box.grid(row=1, column=1, sticky=N + S + E + W)
+        lbl_exp_date: Label = Label(top_frame,text='Expiry date',justify=LEFT,font=("TkDefaultFont", 10, "bold"))
+        lbl_exp_date.grid(row=2,column=0,sticky=N+S+W)
+        self.date_combo_box = Combobox(top_frame,width=30,textvariable=date_var) 
+        self.date_combo_box.grid(row=2, column=1, sticky=N + S + E + W)
         self.date_combo_box.bind('<<ComboboxSelected>>', self.set_expiry_date)
         self.date_combo_box['values'] = tuple(self.expiry_dates)
         self.date_combo_box.set(self.expiry_dates[0])
         
         self.start_button: Button = Button(top_frame,text='START',command=self.refresh_data,width=3)
-        self.start_button.grid(row=2, column=1, sticky=N + S + E + W)
+        self.start_button.grid(row=4, column=1, sticky=N + S + E + W)
         
         self.sh_window.mainloop()
         
-     
-    
     def get_stock_symbols(self)->None:
         url = 'https://www.nseindia.com/api/master-quote'
         url_oc = 'https://www.nseindia.com/'
@@ -199,25 +206,57 @@ class NSE:
     
     def append_df_with_OC(self)->None:
         self.atms: List = []
+        self.pcr: List = []
+        self.live_prices: List[float] = []
         for stk in self.stock_symbs:
-            print(stk)
             self.stock_symb = stk
             self.get_option_chain_data() 
             json_data = self.response.json()
+            print(stk)
             #print(json_data)
+            quote = nse.get_quote(stk)
+            try:
+                self.live_prices.append(float(quote['data'][0]['lastPrice'].replace(',','')))
+            except:
+                self.live_prices.append('null')
+            my_atm: float = 0.0
             strike_prices: List[float] = [data['strikePrice'] for data in json_data['records']['data'] \
                                        if (str(data['expiryDate']).lower() == str(self.date_combo_box.get()).lower())]
-            #print(strike_prices)
-            quote = nse.get_quote(stk)
-            #print(quote)
             try:
                 curr_price = float(quote['data'][0]['lastPrice'].replace(',',''))
                 diff = [abs(x-curr_price) for x in strike_prices]
                 min_pos = diff.index(min(diff))
-                self.atms.append(strike_prices[min_pos])
+                my_atm = strike_prices[min_pos]
+                self.atms.append(my_atm)
             except:
                 self.atms.append('null')
+            ce_values: List[dict] = [data['CE'] for data in json_data['records']['data'] \
+                        if "CE" in data and (str(data['expiryDate'].lower()) == str(self.date_combo_box.get().lower()))]
+            pe_values: List[dict] = [data['PE'] for data in json_data['records']['data'] \
+                        if "PE" in data and (str(data['expiryDate'].lower()) == str(self.date_combo_box.get().lower()))]
+            
+            ce_data: pd.DataFrame = pd.DataFrame(ce_values)
+            pe_data: pd.DataFrame = pd.DataFrame(pe_values)
+            
+            ce_data_sub: pd.DataFrame = ce_data[min_pos+1:min_pos+4]
+            pe_data_sub: pd.DataFrame = pe_data[min_pos-3:min_pos]
+
+            #print(ce_data_sub)
+            #print(pe_data_sub)
+            
+            #print(my_atm)
+            #print(pe_data_sub['openInterest'].sum())
+            #print(ce_data_sub['openInterest'].sum())
+            if(ce_data_sub['openInterest'].sum()!=0): 
+                pcr_ratio = float(pe_data_sub['openInterest'].sum())/float(ce_data_sub['openInterest'].sum())
+            else:
+                pcr_ratio = float(pe_data_sub['openInterest'].sum())/.01
+            self.pcr.append(pcr_ratio)
+        
+        self.df['Current Price'] = self.live_prices
         self.df['ATM'] = self.atms
+        self.df['PCR'] = self.pcr
+        self.df['PCR'] = self.df['PCR'].round(3)
             #try:
             #    self.live_prices.append(quote['data'][0]['lastPrice'])
             #except:
