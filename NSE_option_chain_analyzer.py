@@ -24,11 +24,7 @@ class NSE:
         time_passed = int(self.curr_time-self.prev_time)
         if(time_passed>self.interval):
             self.refresh_data()
-            #self.sheet.insert_rows(rows = 1)
-            #self.sheet.refresh()
         else:
-            #self.sheet.insert_rows(rows = 1)
-            #self.sheet.refresh()
             self.sh_window.after((10 * 1000),self.main_recursive)
             return
         if(not self.stop):
@@ -37,17 +33,19 @@ class NSE:
             
     def __init__(self,window: Tk)->None:
         self.first_run: bool = True
-        self.dict_dfs: dict[pd.DataFrame] = {}
+        self.dict_dfs_INDEX: dict[pd.DataFrame] = {}
+        self.dict_dfs_STOCK: dict[pd.DataFrame] = {}
         self.nb_names: List[String] = ['CE-OTM','PE-OTM','CE-FAR_OTM','PE-FAR_OTM','LTP','PCR']
         for i in self.nb_names:
-            self.dict_dfs[i] = pd.DataFrame()
+            self.dict_dfs_INDEX[i] = pd.DataFrame()
+            self.dict_dfs_STOCK[i] = pd.DataFrame()
         self.stop: bool = False
         self.curr_time = ""
         self.interval = 5#seconds
         self.red: str = "#e53935"
         self.green: str = "#00e676"
-        self.df: pd.DataFrame = pd.DataFrame()
-        self.sheet_col_hdrs: Tuple[str,str] = ('Stocks','ATM')
+        self.df_INDEX: pd.DataFrame = pd.DataFrame()
+        self.df_STOCK: pd.DataFrame = pd.DataFrame()
         self.hdr: Dict[str, str] = {'user-agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 \
                                 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36','accept-language':'en-US,en;q=0.9'}
         self.stock_symbs: List[str] = ['AARTIIND', 'ACC', 'ADANIENT', 'ADANIPORTS', 'AMARAJABAT', 'AMBUJACEM', 'APOLLOHOSP',
@@ -80,13 +78,12 @@ class NSE:
                                   'TVSMOTOR', 'UBL', 'ULTRACEMCO',
                                   'UPL', 'VEDL', 'VOLTAS', 'WIPRO']
         #self.stock_symbs: List[str] = ['INFY','UPL', 'VEDL', 'VOLTAS', 'WIPRO', 'ZEEL']
+        #self.stock_symbs: List[str] = ['INFY','UPL']
         self.indices: List[str] = ['NIFTY','BANKNIFTY']
-        self.option_mode: String = 'Index'
         self.SYMBS: List[String] = self.indices
         self.stock_symb: String = ""
         self.session: requests.Session = requests.Session()
         self.make_intial_nse_connection()
-        self.df['Stocks'] = self.SYMBS
         self.expiry_date: String = ""
         self.sheet_window(window)
         self.resposne: requests.Response = requests.Response()
@@ -107,30 +104,45 @@ class NSE:
     
 
     def refresh_data(self)->None:
+        self.col_time = datetime.now().strftime("%H:%M:%S")
         self.prev_time = time.time()
-        self.append_df_with_OC()
-        self.populate_sheet()
-        #self.stock_combo_box.configure(state='readonly')
-    
-    def set_sheet(self)->None:
-        #self.df = self.df[self.df['Current Price'].notna()]
+        
         if(self.sh_frame):
             self.sh_frame.destroy()
-        self.sh_frame: Frame = Frame(self.sh_window)
-        self.sh_frame.rowconfigure(2, weight=1)
+        self.sh_frame: Frame = Frame(self.sh_window,height=2)
+        self.sh_frame.rowconfigure(0, weight=1)
         self.sh_frame.columnconfigure(0, weight=1)
-        self.sh_frame.pack(anchor=N,fill="both", expand=True)
+        self.sh_frame.pack(anchor=N,fill="x", expand=False)
         
-        self.NB: Notebook = Notebook(self.sh_frame)
+        if(self.stock_frame):
+            self.stock_frame.destroy()
+        self.stock_frame: Frame = Frame(self.sh_window)
+        self.stock_frame.rowconfigure(3, weight=1)
+        self.stock_frame.columnconfigure(0, weight=1)
+        self.stock_frame.pack(anchor=N,fill="both", expand=True)
+        
+        self.SYMBS = self.indices
+        self.index_call = True
+        self.set_sheet(self.sh_frame)
+        self.sheet_formatting()
+        
+        self.SYMBS = self.stock_symbs
+        self.index_call = False
+        self.set_sheet(self.stock_frame)
+        self.sheet_formatting()
+    
+    def set_sheet(self,my_frame: Frame)->None:
+        self.NB: Notebook = Notebook(my_frame)
         self.NB.pack(anchor=N,fill="both", expand=True)
         self.NBF: List[Frame] = []
         self.NBS: List[tksheet.Sheet] = []
         self.NB_DF: List[pd.Dataframe] = []
-        for key in self.dict_dfs.keys():
+        
+        df, dict_dfs = self.append_df_with_OC()
+        for key in dict_dfs.keys():
             self.NBF.append(Frame(self.NB))
-            self.NB_DF.append(pd.concat([self.df,self.dict_dfs[key]],axis = 1))
+            self.NB_DF.append(pd.concat([df,dict_dfs[key]],axis = 1))
             self.NB.add(self.NBF[-1],text=key)
-            #print(self.NB_DF[-1])
             sh = tksheet.Sheet(self.NBF[-1], column_width=70, align="center",
                                                   headers = list(self.NB_DF[-1].columns),
                                                   header_font=("TkDefaultFont", 10, "bold"),
@@ -140,51 +152,14 @@ class NSE:
              "arrowkeys", "right_click_popup_menu", "rc_select", "copy", "select_all"))
             sh.pack(anchor=W,fill="both", expand=True)
             self.NBS.append(sh)
-    
+        
     def set_expiry_date(self,event)->None:
         self.expiry_date = self.date_combo_box.get()
     
-    def set_stock_symb(self,event)->None:
-        self.stock_symb = self.stock_combo_box.get() 
-    
     def set_ref_intvl(self,event)->None:
         self.interval = float(self.ref_intvl_cbox.get())*60.
-        print(self.interval)
     
-    def populate_sheet_event(self,event)->None:
-        sub_df: pd.DataFrame = pd.DataFrame()   
-        stock_selected: String = self.stock_combo_box.get()
-        if(stock_selected!=" "):
-            sub_df = self.df.loc[self.df['Stocks'] == stock_selected]
-        else:
-            sub_df = self.df
-        
-        self.set_sheet()
-        for col in enumerate(sub_df.columns):
-            self.sheet.set_column_data(col[0],values=sub_df[col[1]])
-
-        for i in range(self.sheet.get_total_rows()):
-            pcr = float(self.sheet.get_cell_data(i,3))
-            diff = float(self.sheet.get_cell_data(i,4))
-            if(pcr>1.):
-                self.sheet.highlight_cells(row=i, column=3, bg=self.green)
-            else:
-                self.sheet.highlight_cells(row=i, column=3, bg=self.red)
-            if(diff>0.):
-                self.sheet.highlight_cells(row=i, column=4, bg=self.red)
-            else:
-                self.sheet.highlight_cells(row=i, column=4, bg=self.green)
-    
-    def popupError(self,s):
-        popupRoot = Tk()
-        #popupRoot.after(2000, exit)
-        popupButton = Button(popupRoot, text = s)
-        popupButton.pack()
-        popupRoot.geometry('400x50+700+500')
-        #popupRoot.mainloop()
-    
-    def populate_sheet(self)->None:
-        self.set_sheet()
+    def sheet_formatting(self)->None:
         num_std_cols = 2#Symb & ATM
         for i in range(len(self.NBS)):
             curr_sh = self.NBS[i]
@@ -195,10 +170,9 @@ class NSE:
                 for i in range(curr_sh.get_total_rows()):
                     for j in range(num_cols-1,num_std_cols,-1):
                         diff = float(curr_sh.get_cell_data(i,j)) - float(curr_sh.get_cell_data(i,j-1))
-                        perc_change = diff*100/float(curr_sh.get_cell_data(i,j-1))
-                        #perc_change = 45;
-                        #if((self.nb_names[i]=='Change in CALL OTM') and (diff==0.0)):
-                        #    self.popupError("ALERT")
+                        perc_change = 1.
+                        if(float(curr_sh.get_cell_data(i,j-1)!=0.)):
+                            perc_change = diff*100/float(curr_sh.get_cell_data(i,j-1))
                         if (diff<0.):
                             curr_sh.highlight_cells(row=i, column=j, bg=self.red,fg='white')
                         elif diff==0.0:
@@ -210,7 +184,6 @@ class NSE:
             curr_sh.set_currently_selected(0,num_cols-1)
             curr_sh.refresh()
     def sheet_window(self,window)->None:
-        self.get_expiry_dates()
         self.sh_window: Tk = window
         self.sh_window.title('Option chain analyzer')
         window_width: int = self.sh_window.winfo_reqwidth()
@@ -222,34 +195,39 @@ class NSE:
         #self.sh_window.geometry("+{}+{}".format(position_right, position_down))
 
         self.sh_frame: Frame = Frame(self.sh_window)
+        self.stock_frame: Frame = Frame(self.sh_window)
         
         top_frame: Frame = Frame(self.sh_window)
         top_frame.rowconfigure(0, weight=1)
         top_frame.columnconfigure(0, weight=1)
         top_frame.pack(anchor=N, expand=False, side=LEFT)
-        #top_frame.grid(row=0, column=0, sticky=N + S + W + E)
-        
-        #stock_symb_var: StringVar = StringVar()
-        #stock_symb_var.set(" ")
-        #lbl_stock_symb: Label = Label(top_frame,text='Stock symbol',justify=LEFT,font=("TkDefaultFont", 10, "bold"))
-        #lbl_stock_symb.grid(row=0,column=0,sticky=N+S+W)
-        #self.stock_combo_box = Combobox(top_frame,width=30,textvariable=stock_symb_var)
-        #self.stock_combo_box.grid(row=0, column=1, sticky=N + S + E + W)
-        #self.stock_combo_box['values'] = self.stock_symbs
-        #self.stock_combo_box.bind('<<ComboboxSelected>>', self.populate_sheet_event)
-        #self.stock_combo_box.configure(state='disabled')
         
         row_idx: int = 0
         
+        self.index_call = True
+        self.get_expiry_dates()
         date_var: StringVar = StringVar()
         date_var.set(" ")
-        lbl_exp_date: Label = Label(top_frame,text='Expiry date',justify=LEFT,font=("TkDefaultFont", 10, "bold"))
+        lbl_exp_date: Label = Label(top_frame,text='Index Expiry',justify=LEFT,font=("TkDefaultFont", 10, "bold"))
         lbl_exp_date.grid(row=row_idx,column=0,sticky=N+S+W)
         self.date_combo_box = Combobox(top_frame,width=30,textvariable=date_var) 
         self.date_combo_box.grid(row=row_idx, column=1, sticky=N + S + E + W)
         self.date_combo_box.bind('<<ComboboxSelected>>', self.set_expiry_date)
         self.date_combo_box['values'] = tuple(self.expiry_dates)
         self.date_combo_box.set(self.expiry_dates[0])
+        row_idx += 1
+        
+        self.index_call = False
+        self.get_expiry_dates()
+        date_var_stock: StringVar = StringVar()
+        date_var_stock.set(" ")
+        lbl_exp_date_stock: Label = Label(top_frame,text='Stock Expiry',justify=LEFT,font=("TkDefaultFont", 10, "bold"))
+        lbl_exp_date_stock.grid(row=row_idx,column=0,sticky=N+S+W)
+        self.date_combo_box_stock = Combobox(top_frame,width=30,textvariable=date_var_stock) 
+        self.date_combo_box_stock.grid(row=row_idx, column=1, sticky=N + S + E + W)
+        self.date_combo_box_stock.bind('<<ComboboxSelected>>', self.set_expiry_date)
+        self.date_combo_box_stock['values'] = tuple(self.expiry_dates)
+        self.date_combo_box_stock.set(self.expiry_dates[0])
         row_idx += 1
         
         ref_intvl: Stringvar = StringVar()
@@ -263,36 +241,12 @@ class NSE:
         self.ref_intvl_cbox.configure(state='readonly')
         row_idx += 1
 
-        
-
-        self.option_button: Button = Button(top_frame, text=f"{'Index' if self.option_mode == 'Index' else 'Stock'}",
-                                              command=self.change_option_mode, width=30)
-        self.option_button.grid(row=row_idx, column=1, sticky=N + S + E + W)
-        row_idx += 1
-        
         self.start_button: Button = Button(top_frame,text='START',command=self.main_recursive,width=3)
         self.start_button.grid(row=row_idx, column=1, sticky=N + S + E + W)
         row_idx += 1
 
-        
-        #self.show_all_button: Button = Button(top_frame,text='Show all',command=self.populate_sheet,width=3)
-        #self.show_all_button.grid(row=5, column=1, sticky=N + S + E + W)
-        
         self.sh_window.mainloop()
     
-    def change_option_mode(self)->None:
-        if self.option_button['text'] == 'Index':
-            self.option_mode = 'Stock'
-            self.option_button.config(text='Stocks')
-            self.SYMBS = self.stock_symbs 
-        else:
-            self.stock_symb = 'NIFTY'
-            self.option_mode = 'Index'
-            self.option_button.config(text='Index')
-            self.SYMBS = self.indices
-        self.get_expiry_dates()
-        self.df['Stocks'] = self.SYMBS
-        
     def get_stock_symbols(self)->None:
         url = 'https://www.nseindia.com/api/master-quote'
         url_oc = 'https://www.nseindia.com/'
@@ -303,7 +257,7 @@ class NSE:
         self.stock_symbs = list(json_data)
         
     def get_option_chain_data(self)->None:
-        if self.option_mode == "Index":
+        if self.index_call:
             self.url = 'https://www.nseindia.com/api/option-chain-indices?symbol='+self.stock_symb
         else:
             self.url = 'https://www.nseindia.com/api/option-chain-equities?symbol='+self.stock_symb
@@ -315,7 +269,7 @@ class NSE:
             self.make_intial_nse_connection()
     
     def get_expiry_dates(self)->Tuple:
-        if self.option_mode == "Index":
+        if self.index_call:
             self.stock_symb = 'NIFTY'
         else:
             self.stock_symb = 'ASHOKLEY'
@@ -323,12 +277,9 @@ class NSE:
         json_data = self.response.json()
         self.expiry_dates: List = []
         self.expiry_dates = json_data['records']['expiryDates']
-        #for i in range(len(json_data['records']['data'])):
-        #    dd = json_data['records']['data'][i]['expiryDate']
-        #    if dd not in self.expiry_dates:
-        #        self.expiry_dates.append(json_data['records']['data'][i]['expiryDate'])
     
-    def append_df_with_OC(self)->None:
+
+    def append_df_with_OC(self):
         self.atms: List = []
         self.pcr: List = []
         self.live_prices: List[float] = []
@@ -349,13 +300,17 @@ class NSE:
             #    self.live_prices.append(float(quote['data'][0]['lastPrice'].replace(',','')))
             #except:
             #    self.live_prices.append('null')
+            if self.index_call:
+                match_date = self.date_combo_box.get()
+            else:
+                match_date = self.date_combo_box_stock.get()
             my_atm: float = 0.0
             strike_prices: List[float] = [data['strikePrice'] for data in json_data['records']['data'] \
-                                       if (str(data['expiryDate']).lower() == str(self.date_combo_box.get()).lower())]
+                                       if (str(data['expiryDate']).lower() == str(match_date).lower())]
             ce_values: List[dict] = [data['CE'] for data in json_data['records']['data'] \
-                        if "CE" in data and (str(data['expiryDate'].lower()) == str(self.date_combo_box.get().lower()))]
+                        if "CE" in data and (str(data['expiryDate'].lower()) == str(match_date.lower()))]
             pe_values: List[dict] = [data['PE'] for data in json_data['records']['data'] \
-                        if "PE" in data and (str(data['expiryDate'].lower()) == str(self.date_combo_box.get().lower()))]
+                        if "PE" in data and (str(data['expiryDate'].lower()) == str(match_date.lower()))]
             
             ce_data: pd.DataFrame = pd.DataFrame(ce_values)
             pe_data: pd.DataFrame = pd.DataFrame(pe_values)
@@ -397,18 +352,29 @@ class NSE:
             self.put_sum_otm.append(put_sum_otm)
             self.call_sum_far_otm.append(call_sum_far_otm)
             self.put_sum_far_otm.append(put_sum_far_otm)
-
-        self.timee = datetime.now().strftime("%H:%M:%S") 
-        #self.df['LTP'] = self.live_prices
-        self.df['ATM'] = self.atms
         
-        self.dict_dfs['PCR'][self.timee] = self.pcr 
-        self.dict_dfs['PCR'][self.timee] = self.dict_dfs['PCR'][self.timee].round(3)
-        self.dict_dfs['CE-OTM'][self.timee] = self.call_sum_otm
-        self.dict_dfs['PE-OTM'][self.timee] = self.put_sum_otm
-        self.dict_dfs['CE-FAR_OTM'][self.timee] = self.call_sum_far_otm
-        self.dict_dfs['PE-FAR_OTM'][self.timee] = self.put_sum_far_otm
-        self.dict_dfs['LTP'][self.timee] = self.live_prices
+        if(self.index_call):
+            self.df_INDEX['SYMB'] = self.SYMBS
+            self.df_INDEX['ATM'] = self.atms
+            self.dict_dfs_INDEX['PCR'][self.col_time] = self.pcr 
+            self.dict_dfs_INDEX['PCR'][self.col_time] = self.dict_dfs_INDEX['PCR'][self.col_time].round(3)
+            self.dict_dfs_INDEX['CE-OTM'][self.col_time] = self.call_sum_otm
+            self.dict_dfs_INDEX['PE-OTM'][self.col_time] = self.put_sum_otm
+            self.dict_dfs_INDEX['CE-FAR_OTM'][self.col_time] = self.call_sum_far_otm
+            self.dict_dfs_INDEX['PE-FAR_OTM'][self.col_time] = self.put_sum_far_otm
+            self.dict_dfs_INDEX['LTP'][self.col_time] = self.live_prices
+            return self.df_INDEX, self.dict_dfs_INDEX
+        else:
+            self.df_STOCK['SYMB'] = self.SYMBS
+            self.df_STOCK['ATM'] = self.atms
+            self.dict_dfs_STOCK['PCR'][self.col_time] = self.pcr 
+            self.dict_dfs_STOCK['PCR'][self.col_time] = self.dict_dfs_STOCK['PCR'][self.col_time].round(3)
+            self.dict_dfs_STOCK['CE-OTM'][self.col_time] = self.call_sum_otm
+            self.dict_dfs_STOCK['PE-OTM'][self.col_time] = self.put_sum_otm
+            self.dict_dfs_STOCK['CE-FAR_OTM'][self.col_time] = self.call_sum_far_otm
+            self.dict_dfs_STOCK['PE-FAR_OTM'][self.col_time] = self.put_sum_far_otm
+            self.dict_dfs_STOCK['LTP'][self.col_time] = self.live_prices
+            return self.df_STOCK, self.dict_dfs_STOCK
                     
 if __name__ == '__main__':
     master_window: Tk = Tk()
