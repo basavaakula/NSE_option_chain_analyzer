@@ -41,11 +41,16 @@ class NSE:
             self.dict_dfs_STOCK[i] = pd.DataFrame()
         self.stop: bool = False
         self.curr_time = ""
-        self.interval = 5#seconds
+        self.interval = 30#seconds
         self.red: str = "#e53935"
         self.green: str = "#00e676"
         self.df_INDEX: pd.DataFrame = pd.DataFrame()
         self.df_STOCK: pd.DataFrame = pd.DataFrame()
+        self.popular_stocks: List[str] = ['ASHOKLEY','AXISBANK', 'BAJAJ-AUTO', 'BAJAJFINSV',\
+                                          'BRITANNIA','DRREDDY','GLENMARK','HDFC', 'HDFCBANK',\
+                                          'ICICIBANK','INDUSINDBK','INFY','MANAPPURAM','MARUTI',\
+                                          'MUTHOOTFIN','RELIANCE','SBILIFE', 'SBIN','TATAMOTORS',\
+                                          'TCS','WIPRO','ZEEL']
         self.hdr: Dict[str, str] = {'user-agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 \
                                 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36','accept-language':'en-US,en;q=0.9'}
         self.stock_symbs: List[str] = ['AARTIIND', 'ACC', 'ADANIENT', 'ADANIPORTS', 'AMARAJABAT', 'AMBUJACEM', 'APOLLOHOSP',
@@ -79,6 +84,7 @@ class NSE:
                                   'UPL', 'VEDL', 'VOLTAS', 'WIPRO']
         #self.stock_symbs: List[str] = ['INFY','UPL', 'VEDL', 'VOLTAS', 'WIPRO', 'ZEEL']
         #self.stock_symbs: List[str] = ['INFY','UPL']
+        self.stock_symbs = self.popular_stocks
         self.indices: List[str] = ['NIFTY','BANKNIFTY']
         self.SYMBS: List[String] = self.indices
         self.stock_symb: String = ""
