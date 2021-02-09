@@ -10,6 +10,7 @@ import tksheet
 import nsepy.live as nse
 from datetime import datetime
 import time
+from sys import exit
 
 class NSE:
     def stop_all(self)->None:
@@ -37,12 +38,12 @@ class NSE:
     def __init__(self,window: Tk)->None:
         self.first_run: bool = True
         self.dict_dfs: dict[pd.DataFrame] = {}
-        self.nb_names: List[String] = ['PCR','Change in CALL OTM','Change in PUT OTM']
+        self.nb_names: List[String] = ['CE-OTM','PE-OTM','CE-FAR_OTM','PE-FAR_OTM','LTP','PCR']
         for i in self.nb_names:
             self.dict_dfs[i] = pd.DataFrame()
         self.stop: bool = False
         self.curr_time = ""
-        self.interval = 20#seconds
+        self.interval = 5#seconds
         self.red: str = "#e53935"
         self.green: str = "#00e676"
         self.df: pd.DataFrame = pd.DataFrame()
@@ -130,8 +131,8 @@ class NSE:
             self.NB_DF.append(pd.concat([self.df,self.dict_dfs[key]],axis = 1))
             self.NB.add(self.NBF[-1],text=key)
             #print(self.NB_DF[-1])
-            sh = tksheet.Sheet(self.NBF[-1], column_width=110, align="center",
-                                                  headers = list(self.NB_DF[-1].columns), 
+            sh = tksheet.Sheet(self.NBF[-1], column_width=70, align="center",
+                                                  headers = list(self.NB_DF[-1].columns),
                                                   header_font=("TkDefaultFont", 10, "bold"),
                                                   empty_horizontal=0, empty_vertical=20, header_height=35)
             sh.enable_bindings(
@@ -147,7 +148,7 @@ class NSE:
         self.stock_symb = self.stock_combo_box.get() 
     
     def set_ref_intvl(self,event)->None:
-        #self.interval = float(self.ref_intvl_cbox.get())*60.
+        self.interval = float(self.ref_intvl_cbox.get())*60.
         print(self.interval)
     
     def populate_sheet_event(self,event)->None:
@@ -174,27 +175,17 @@ class NSE:
             else:
                 self.sheet.highlight_cells(row=i, column=4, bg=self.green)
     
-#    def populate_sheet(self)->None:
-#        sub_df: pd.DataFrame = pd.DataFrame()   
-#        stock_selected: String = self.stock_combo_box.get()
-#        self.stock_combo_box.set("")
-#        sub_df = self.df
-#        self.set_sheet()
-#        for col in enumerate(sub_df.columns):
-#            self.sheet.set_column_data(col[0],values=sub_df[col[1]])
-#        for i in range(self.sheet.get_total_rows()):
-#            pcr = float(self.sheet.get_cell_data(i,3))
-#            diff = float(self.sheet.get_cell_data(i,4))
-#            if(pcr>1.):
-#                self.sheet.highlight_cells(row=i, column=3, bg=self.green)
-#            else:
-#                self.sheet.highlight_cells(row=i, column=3, bg=self.red)
-#            if(diff>0.):
-#                self.sheet.highlight_cells(row=i, column=4, bg=self.red)
-#            else:
-#                self.sheet.highlight_cells(row=i, column=4, bg=self.green)
+    def popupError(self,s):
+        popupRoot = Tk()
+        #popupRoot.after(2000, exit)
+        popupButton = Button(popupRoot, text = s)
+        popupButton.pack()
+        popupRoot.geometry('400x50+700+500')
+        #popupRoot.mainloop()
+    
     def populate_sheet(self)->None:
         self.set_sheet()
+        num_std_cols = 2#Symb & ATM
         for i in range(len(self.NBS)):
             curr_sh = self.NBS[i]
             num_cols = len(self.NB_DF[i].columns)
@@ -202,14 +193,21 @@ class NSE:
                 curr_sh.set_column_data(col[0],values=self.NB_DF[i][col[1]])
             if(not self.first_run):
                 for i in range(curr_sh.get_total_rows()):
-                    for j in range(num_cols-1,3,-1):
+                    for j in range(num_cols-1,num_std_cols,-1):
                         diff = float(curr_sh.get_cell_data(i,j)) - float(curr_sh.get_cell_data(i,j-1))
+                        perc_change = diff*100/float(curr_sh.get_cell_data(i,j-1))
+                        #perc_change = 45;
+                        #if((self.nb_names[i]=='Change in CALL OTM') and (diff==0.0)):
+                        #    self.popupError("ALERT")
                         if (diff<0.):
-                            curr_sh.highlight_cells(row=i, column=j, bg=self.red)
+                            curr_sh.highlight_cells(row=i, column=j, bg=self.red,fg='white')
                         elif diff==0.0:
-                            curr_sh.highlight_cells(row=i, column=j, bg='white')
+                            curr_sh.highlight_cells(row=i, column=j, bg='white',fg='black')
                         else:
-                            curr_sh.highlight_cells(row=i, column=j, bg=self.green)
+                            curr_sh.highlight_cells(row=i, column=j, bg='blue',fg='white')
+                        if perc_change>40.:
+                            curr_sh.highlight_cells(row=i, column=j, bg='green',fg='white')
+            curr_sh.set_currently_selected(0,num_cols-1)
             curr_sh.refresh()
     def sheet_window(self,window)->None:
         self.get_expiry_dates()
@@ -219,7 +217,8 @@ class NSE:
         window_height: int = self.sh_window.winfo_reqheight()
         position_right: int = int(self.sh_window.winfo_screenwidth() / 2 - window_width / 2)
         position_down: int = int(self.sh_window.winfo_screenheight() / 2 - window_height / 2)
-        self.sh_window.geometry("1600x800+{}+{}".format(position_right, position_down))
+        #self.sh_window.geometry("1200x600+{}+{}".format(position_right, position_down))
+        self.sh_window.geometry("1200x600+300+200")
         #self.sh_window.geometry("+{}+{}".format(position_right, position_down))
 
         self.sh_frame: Frame = Frame(self.sh_window)
@@ -336,6 +335,8 @@ class NSE:
         self.DIFF_otm: List[float] = []
         self.call_sum_otm: List[float] = []
         self.put_sum_otm: List[float] = []
+        self.call_sum_far_otm: List[float] = []
+        self.put_sum_far_otm: List[float] = []
         for stk in self.SYMBS:
             self.stock_symb = stk
             self.get_option_chain_data() 
@@ -370,12 +371,6 @@ class NSE:
             except:
                 self.atms.append('null')
             
-            ce_data_sub: pd.DataFrame = ce_data[min_pos+1:min_pos+4]
-            pe_data_sub: pd.DataFrame = pe_data[min_pos+1:min_pos+4]
-            
-            ce_data_itm: pd.DataFrame = ce_data[min_pos-3:min_pos]
-            pe_data_itm: pd.DataFrame = pe_data[min_pos+1:min_pos+4]
-            
             ce_data_otm: pd.DataFrame = ce_data[min_pos+1:min_pos+4]
             pe_data_otm: pd.DataFrame = pe_data[min_pos-3:min_pos]
             
@@ -392,9 +387,6 @@ class NSE:
 
             diff_far_otm = call_sum_far_otm - put_sum_far_otm
 
-            #print(my_atm)
-            #print(pe_data_sub['openInterest'].sum())
-            #print(ce_data_sub['openInterest'].sum())
             if(ce_data['openInterest'].sum()!=0): 
                 pcr_ratio = float(pe_data['openInterest'].sum())/float(ce_data['openInterest'].sum())
             else:
@@ -403,15 +395,20 @@ class NSE:
             self.DIFF_otm.append(diff_otm)
             self.call_sum_otm.append(call_sum_otm)
             self.put_sum_otm.append(put_sum_otm)
+            self.call_sum_far_otm.append(call_sum_far_otm)
+            self.put_sum_far_otm.append(put_sum_far_otm)
 
         self.timee = datetime.now().strftime("%H:%M:%S") 
-        self.df['Current Price'] = self.live_prices
+        #self.df['LTP'] = self.live_prices
         self.df['ATM'] = self.atms
         
         self.dict_dfs['PCR'][self.timee] = self.pcr 
         self.dict_dfs['PCR'][self.timee] = self.dict_dfs['PCR'][self.timee].round(3)
-        self.dict_dfs['Change in CALL OTM'][self.timee] = self.call_sum_otm
-        self.dict_dfs['Change in PUT OTM'][self.timee] = self.put_sum_otm
+        self.dict_dfs['CE-OTM'][self.timee] = self.call_sum_otm
+        self.dict_dfs['PE-OTM'][self.timee] = self.put_sum_otm
+        self.dict_dfs['CE-FAR_OTM'][self.timee] = self.call_sum_far_otm
+        self.dict_dfs['PE-FAR_OTM'][self.timee] = self.put_sum_far_otm
+        self.dict_dfs['LTP'][self.timee] = self.live_prices
                     
 if __name__ == '__main__':
     master_window: Tk = Tk()
