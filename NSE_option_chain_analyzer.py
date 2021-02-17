@@ -483,18 +483,6 @@ class NSE:
         if(self.index_call):
             self.df_INDEX['SYMB'] = self.SYMBS
             self.df_INDEX['ATM'] = self.atms
-            #self.dict_dfs_INDEX['PCR'][self.col_time] = self.pcr 
-            #self.dict_dfs_INDEX['PCR'][self.col_time] = self.dict_dfs_INDEX['PCR'][self.col_time].round(3)
-            #self.dict_dfs_INDEX['CE-OTM'][self.col_time] = self.call_sum_otm
-            #self.dict_dfs_INDEX['PE-OTM'][self.col_time] = self.put_sum_otm
-            #self.dict_dfs_INDEX['CE-FAR_OTM'][self.col_time] = self.call_sum_far_otm
-            #self.dict_dfs_INDEX['PE-FAR_OTM'][self.col_time] = self.put_sum_far_otm
-            #self.dict_dfs_INDEX['LTP'][self.col_time] = self.live_prices
-            #self.dict_dfs_INDEX['PCR OTM'][self.col_time] = self.pcr_otm
-            #self.dict_dfs_INDEX['PCR OTM'][self.col_time] = self.dict_dfs_INDEX['PCR OTM'][self.col_time].round(3)
-            #self.dict_dfs_INDEX['PCR FAR OTM'][self.col_time] = self.pcr_far_otm
-            #self.dict_dfs_INDEX['PCR FAR OTM'][self.col_time] = self.dict_dfs_INDEX['PCR FAR OTM'][self.col_time].round(3)
-            
             self.dict_dfs_INDEX['PCR'].insert(0,self.col_time,self.pcr)
             self.dict_dfs_INDEX['PCR'][self.col_time] = self.dict_dfs_INDEX['PCR'][self.col_time].round(3)
             self.dict_dfs_INDEX['CE-OTM'].insert(0,self.col_time,self.call_sum_otm)
@@ -511,18 +499,6 @@ class NSE:
         else:
             self.df_STOCK['SYMB'] = self.SYMBS
             self.df_STOCK['ATM'] = self.atms
-            #self.dict_dfs_STOCK['PCR'][self.col_time] = self.pcr 
-            #self.dict_dfs_STOCK['PCR'][self.col_time] = self.dict_dfs_STOCK['PCR'][self.col_time].round(3)
-            #self.dict_dfs_STOCK['CE-OTM'][self.col_time] = self.call_sum_otm
-            #self.dict_dfs_STOCK['PE-OTM'][self.col_time] = self.put_sum_otm
-            #self.dict_dfs_STOCK['CE-FAR_OTM'][self.col_time] = self.call_sum_far_otm
-            #self.dict_dfs_STOCK['PE-FAR_OTM'][self.col_time] = self.put_sum_far_otm
-            #self.dict_dfs_STOCK['LTP'][self.col_time] = self.live_prices
-            #self.dict_dfs_STOCK['PCR OTM'].insert(0,self.col_time,self.pcr_otm)
-            #self.dict_dfs_STOCK['PCR OTM'][self.col_time] = self.dict_dfs_STOCK['PCR OTM'][self.col_time].round(3)
-            #self.dict_dfs_STOCK['PCR FAR OTM'][self.col_time] = self.pcr_far_otm
-            #self.dict_dfs_STOCK['PCR FAR OTM'][self.col_time] = self.dict_dfs_STOCK['PCR FAR OTM'][self.col_time].round(3)
-
             self.dict_dfs_STOCK['PCR'].insert(0,self.col_time,self.pcr)
             self.dict_dfs_STOCK['PCR'][self.col_time] = self.dict_dfs_STOCK['PCR'][self.col_time].round(3)
             self.dict_dfs_STOCK['CE-OTM'].insert(0,self.col_time,self.call_sum_otm)
