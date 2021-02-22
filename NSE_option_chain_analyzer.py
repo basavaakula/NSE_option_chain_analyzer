@@ -14,6 +14,9 @@ import nsepy.live as nse
 from datetime import datetime
 import time
 from sys import exit
+import matplotlib.pyplot as plt
+import numpy as np
+from operator import mul
 
 class NSE:
     def stop_all(self)->None:
@@ -35,10 +38,14 @@ class NSE:
             return
             
     def __init__(self,window: Tk)->None:
+        self.first_run_live_price: List[float] = []
+        self.plot_only: bool = True
+        self.graph_index, = plt.plot([], [],'o-',label = 'BANKNIFTY')
+        #self.graph_index = plt.figure()
         self.first_run: bool = True
         self.dict_dfs_INDEX: dict[pd.DataFrame] = {}
         self.dict_dfs_STOCK: dict[pd.DataFrame] = {}
-        self.nb_names: List[String] = ['PCR OTM','PCR FAR OTM','CE-OTM','PE-OTM','CE-FAR_OTM','PE-FAR_OTM','LTP','PCR']
+        self.nb_names: List[String] = ['PCR OTM','DIFF OTM','PCR FAR OTM','CE-OTM','PE-OTM','CE-FAR_OTM','PE-FAR_OTM','LTP','PCR']
         for i in self.nb_names:
             self.dict_dfs_INDEX[i] = pd.DataFrame()
             self.dict_dfs_STOCK[i] = pd.DataFrame()
@@ -89,6 +96,7 @@ class NSE:
         #self.stock_symbs: List[str] = ['INFY','UPL']
         self.stock_symbs = self.popular_stocks
         self.indices: List[str] = ['NIFTY','BANKNIFTY']
+        #self.indices: List[str] = ['BANKNIFTY']
         self.SYMBS: List[String] = self.indices
         self.stock_symb: String = ""
         self.session: requests.Session = requests.Session()
@@ -133,8 +141,13 @@ class NSE:
         if(self.check_index_var.get()):
             self.SYMBS = self.indices
             self.index_call = True
-            self.set_sheet(self.sh_frame)
-            self.sheet_formatting()
+
+            if(self.plot_only):
+                self.get_data_plot_only()
+            else:
+                self.set_sheet(self.sh_frame)
+                self.sheet_formatting()
+            self.draw_plots()
         
         if(self.check_stocks_var.get()):
             self.SYMBS = self.stock_symbs
@@ -146,6 +159,13 @@ class NSE:
             self.index_call = False
             self.set_sheet(self.stock_frame)
             self.sheet_formatting()
+    
+    def get_data_plot_only(self):
+        self.NB_DF: List[pd.Dataframe] = []
+        df, dict_dfs = self.append_df_with_OC()
+        for key in dict_dfs.keys():
+            self.NB_DF.append(pd.concat([df,dict_dfs[key]],axis = 1))
+        
     
     def set_sheet(self,my_frame: Frame)->None:
         self.NB: Notebook = Notebook(my_frame)
@@ -175,33 +195,8 @@ class NSE:
     def set_ref_intvl(self,event)->None:
         self.interval = float(self.ref_intvl_cbox.get())
     
-#    def sheet_formatting(self)->None:
-#        num_std_cols = 2#Symb & ATM
-#        for i in range(len(self.NBS)):
-#            curr_sh = self.NBS[i]
-#            num_cols = len(self.NB_DF[i].columns)
-#            for col in enumerate(self.NB_DF[i].columns):
-#                curr_sh.set_column_data(col[0],values=self.NB_DF[i][col[1]])
-#            if(not self.first_run):
-#                for i in range(curr_sh.get_total_rows()):
-#                    for j in range(num_cols-1,num_std_cols,-1):
-#                        diff = float(curr_sh.get_cell_data(i,j)) - float(curr_sh.get_cell_data(i,j-1))
-#                        perc_change = 1.
-#                        if(float(curr_sh.get_cell_data(i,j-1))>0.0):
-#                            perc_change = diff*100/float(curr_sh.get_cell_data(i,j-1))
-#                        if (diff<0.):
-#                            curr_sh.highlight_cells(row=i, column=j, bg=self.red,fg='white')
-#                        elif diff==0.0:
-#                            curr_sh.highlight_cells(row=i, column=j, bg='white',fg='black')
-#                        else:
-#                            curr_sh.highlight_cells(row=i, column=j, bg='blue',fg='white')
-#                        if perc_change>40.:
-#                            curr_sh.highlight_cells(row=i, column=j, bg='green',fg='white')
-#            curr_sh.set_currently_selected(0,num_cols-1)
-#            curr_sh.refresh()
-    
     def sheet_formatting(self)->None:
-        num_std_cols = 2#Symb & ATM
+        num_std_cols = 3#Symb & ATM
         for i in range(len(self.NBS)):
             curr_sh = self.NBS[i]
             num_cols = len(self.NB_DF[i].columns)
@@ -379,6 +374,13 @@ class NSE:
             self.url = 'https://www.nseindia.com/api/option-chain-equities?symbol='+self.stock_symb
         try:
             self.response = self.session.get(self.url,headers=self.hdr,timeout=5,cookies=self.cookies)
+            if self.response.status_code == 401:
+                self.session.close()
+                self.session = requests.Session()
+                request = self.session.get(self.url_oc, headers=self.hdr, timeout=5)
+                self.cookies = dict(request.cookies)
+                self.response = self.session.get(self.url,headers=self.hdr,timeout=5,cookies=self.cookies)
+                print("reset cookies")
         except Exception as err:
             print(self.response)
             print(err, "5")
@@ -394,8 +396,38 @@ class NSE:
         self.expiry_dates: List = []
         self.expiry_dates = json_data['records']['expiryDates']
     
-
+    def draw_plots(self):
+        self.plot_keys = ['PCR OTM','LTP']
+        mrk_type = ['-ro','--gs']
+        #self.plot_keys = ['PCR OTM']
+        idx: Int = -1
+        plt.clf()
+        for key in enumerate(self.plot_keys):
+            idx = -1
+            try:
+                idx = self.nb_names.index(key[1])
+            except:
+                pass
+            if(idx!=-1):
+                print(key)
+                print(idx)
+                xx = self.NB_DF[idx].loc[self.NB_DF[idx]['SYMB']=='BANKNIFTY']
+                y_data = (xx[xx.columns[3:]].values)
+                y_dat = (y_data[0].tolist())
+                y_dat.reverse()
+                x_data = range(len(y_dat))
+                if self.index_call:
+                    #self.graph_index.set_ydata(y_dat) 
+                    #self.graph_index.set_xdata(x_data)
+                    plt.plot(x_data,y_dat,mrk_type[key[0]],label=key[1])
+                    plt.xlim([0,1.1*len(y_dat)])
+                    plt.ylim([0.,2.])
+                    plt.legend()
+        plt.pause(.0001)
+        plt.show(block = False)
+        
     def append_df_with_OC(self):
+        self.diff_otm: List = []
         self.atms: List = []
         self.pcr: List = []
         self.pcr_otm: List = []
@@ -406,8 +438,8 @@ class NSE:
         self.put_sum_otm: List[float] = []
         self.call_sum_far_otm: List[float] = []
         self.put_sum_far_otm: List[float] = []
-        for stk in self.SYMBS:
-            self.stock_symb = stk
+        for stk in enumerate(self.SYMBS):
+            self.stock_symb = stk[1]
             self.get_option_chain_data() 
             json_data = self.response.json()
             #print(stk)
@@ -429,13 +461,15 @@ class NSE:
                         if "CE" in data and (str(data['expiryDate'].lower()) == str(match_date.lower()))]
             pe_values: List[dict] = [data['PE'] for data in json_data['records']['data'] \
                         if "PE" in data and (str(data['expiryDate'].lower()) == str(match_date.lower()))]
-            
+             
             ce_data: pd.DataFrame = pd.DataFrame(ce_values)
             pe_data: pd.DataFrame = pd.DataFrame(pe_values)
-
-
+            
+            
+            #print(list(ce_data.columns))
             curr_price = ce_data['underlyingValue'][0]
-            self.live_prices.append(curr_price)
+            if(self.first_run):
+                self.first_run_live_price.append(curr_price)
             try:
                 diff = [abs(x-curr_price) for x in strike_prices]
                 min_pos = diff.index(min(diff))
@@ -444,22 +478,24 @@ class NSE:
             except:
                 self.atms.append('null')
             
-            ce_data_otm: pd.DataFrame = ce_data[min_pos+1:min_pos+4]
-            pe_data_otm: pd.DataFrame = pe_data[min_pos-3:min_pos]
-            
+            self.live_prices.append(curr_price/self.first_run_live_price[stk[0]])
+            ce_data_otm: pd.DataFrame = ce_data[min_pos:min_pos+4]
+            pe_data_otm: pd.DataFrame = pe_data[min_pos-2:min_pos+2]
+
             ce_data_far_otm: pd.DataFrame = ce_data[min_pos+4:min_pos+8]
             pe_data_far_otm: pd.DataFrame = pe_data[min_pos-7:min_pos-3]
             
-            call_sum_otm =  ce_data_otm['changeinOpenInterest'].sum()
-            put_sum_otm  =  pe_data_otm['changeinOpenInterest'].sum()
+            call_sum_otm =  ce_data_otm['openInterest'].sum()
+            put_sum_otm  =  pe_data_otm['openInterest'].sum()
+            diff_otm = (ce_data_otm['changeinOpenInterest'].sum()-pe_data_otm['changeinOpenInterest'].sum())/ce_data_otm['changeinOpenInterest'].sum()
 
             if(call_sum_otm==0.):
                 call_sum_otm = 0.001
             if(put_sum_otm==0.):
                 put_sum_otm = 0.001
              
-            call_sum_far_otm =  ce_data_far_otm['changeinOpenInterest'].sum()
-            put_sum_far_otm =  pe_data_far_otm['changeinOpenInterest'].sum()
+            call_sum_far_otm =  ce_data_far_otm['openInterest'].sum()
+            put_sum_far_otm =  pe_data_far_otm['openInterest'].sum()
             
             if(call_sum_far_otm==0.):
                 call_sum_far_otm = 0.001
@@ -479,37 +515,48 @@ class NSE:
             self.put_sum_far_otm.append(put_sum_far_otm)
             self.pcr_otm.append(put_sum_otm/call_sum_otm)
             self.pcr_far_otm.append(put_sum_far_otm/call_sum_far_otm)
+            self.diff_otm.append(diff_otm)
         
+        self.live_price_normalized = list(map(mul,self.pcr_otm,self.live_prices))
         if(self.index_call):
             self.df_INDEX['SYMB'] = self.SYMBS
             self.df_INDEX['ATM'] = self.atms
+            self.df_INDEX['CONST PRICE'] = self.first_run_live_price
             self.dict_dfs_INDEX['PCR'].insert(0,self.col_time,self.pcr)
             self.dict_dfs_INDEX['PCR'][self.col_time] = self.dict_dfs_INDEX['PCR'][self.col_time].round(3)
             self.dict_dfs_INDEX['CE-OTM'].insert(0,self.col_time,self.call_sum_otm)
             self.dict_dfs_INDEX['PE-OTM'].insert(0,self.col_time,self.put_sum_otm)
             self.dict_dfs_INDEX['CE-FAR_OTM'].insert(0,self.col_time,self.call_sum_far_otm)
             self.dict_dfs_INDEX['PE-FAR_OTM'].insert(0,self.col_time,self.put_sum_far_otm)
-            self.dict_dfs_INDEX['LTP'].insert(0,self.col_time,self.live_prices)
+            self.dict_dfs_INDEX['LTP'].insert(0,self.col_time,self.live_price_normalized)
+            self.dict_dfs_INDEX['LTP'][self.col_time] = self.dict_dfs_INDEX['LTP'][self.col_time].round(3)
             self.dict_dfs_INDEX['PCR OTM'].insert(0,self.col_time,self.pcr_otm)
             self.dict_dfs_INDEX['PCR OTM'][self.col_time] = self.dict_dfs_INDEX['PCR OTM'][self.col_time].round(3)
             self.dict_dfs_INDEX['PCR FAR OTM'].insert(0,self.col_time,self.pcr_far_otm)
             self.dict_dfs_INDEX['PCR FAR OTM'][self.col_time] = self.dict_dfs_INDEX['PCR FAR OTM'][self.col_time].round(3)
+            self.dict_dfs_INDEX['DIFF OTM'].insert(0,self.col_time,self.diff_otm)
+            self.dict_dfs_INDEX['DIFF OTM'][self.col_time] = self.dict_dfs_INDEX['DIFF OTM'][self.col_time].round(3)
+            self.dict_dfs_INDEX['DIFF OTM'][self.col_time] = self.dict_dfs_INDEX['DIFF OTM'][self.col_time].round(3)
             
             return self.df_INDEX, self.dict_dfs_INDEX
         else:
             self.df_STOCK['SYMB'] = self.SYMBS
             self.df_STOCK['ATM'] = self.atms
+            self.df_STOCK['CONST PRICE'] = self.first_run_live_price
             self.dict_dfs_STOCK['PCR'].insert(0,self.col_time,self.pcr)
             self.dict_dfs_STOCK['PCR'][self.col_time] = self.dict_dfs_STOCK['PCR'][self.col_time].round(3)
             self.dict_dfs_STOCK['CE-OTM'].insert(0,self.col_time,self.call_sum_otm)
             self.dict_dfs_STOCK['PE-OTM'].insert(0,self.col_time,self.put_sum_otm)
             self.dict_dfs_STOCK['CE-FAR_OTM'].insert(0,self.col_time,self.call_sum_far_otm)
             self.dict_dfs_STOCK['PE-FAR_OTM'].insert(0,self.col_time,self.put_sum_far_otm)
-            self.dict_dfs_STOCK['LTP'].insert(0,self.col_time,self.live_prices)
+            self.dict_dfs_STOCK['LTP'].insert(0,self.col_time,self.live_price_normalized)
+            self.dict_dfs_STOCK['LTP'][self.col_time] = self.dict_dfs_INDEX['LTP'][self.col_time].round(3)
             self.dict_dfs_STOCK['PCR OTM'].insert(0,self.col_time,self.pcr_otm)
             self.dict_dfs_STOCK['PCR OTM'][self.col_time] = self.dict_dfs_STOCK['PCR OTM'][self.col_time].round(3)
             self.dict_dfs_STOCK['PCR FAR OTM'].insert(0,self.col_time,self.pcr_far_otm)
             self.dict_dfs_STOCK['PCR FAR OTM'][self.col_time] = self.dict_dfs_STOCK['PCR FAR OTM'][self.col_time].round(3)
+            self.dict_dfs_STOCK['DIFF OTM'].insert(0,self.col_time,self.diff_otm)
+            self.dict_dfs_STOCK['DIFF OTM'][self.col_time] = self.dict_dfs_STOCK['DIFF OTM'][self.col_time].round(3)
             return self.df_STOCK, self.dict_dfs_STOCK
                     
 if __name__ == '__main__':
