@@ -17,6 +17,8 @@ from sys import exit
 import matplotlib.pyplot as plt
 import numpy as np
 from operator import mul
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
 
 class NSE:
     def stop_all(self)->None:
@@ -41,7 +43,6 @@ class NSE:
         self.first_run_live_price: List[float] = []
         self.plot_only: bool = True
         self.graph_index, = plt.plot([], [],'o-',label = 'BANKNIFTY')
-        #self.graph_index = plt.figure()
         self.first_run: bool = True
         self.dict_dfs_INDEX: dict[pd.DataFrame] = {}
         self.dict_dfs_STOCK: dict[pd.DataFrame] = {}
@@ -106,18 +107,22 @@ class NSE:
         self.resposne: requests.Response = requests.Response()
     
     def make_intial_nse_connection(self)->None:
-        #if(self.stock_symb==""):
-        #    self.session.close()
         self.session.close()
         self.session = requests.Session()
         url_oc = 'https://www.nseindia.com/option-chain'
-        self.response = self.session.get(url_oc,headers=self.hdr,timeout=5)
+        try:
+            self.response = self.session.get(url_oc,headers=self.hdr,timeout=5)
+        except:
+            self.sh_window.after((10 * 1000),self.make_intial_nse_connection)
+            return
         self.cookies = self.response.cookies
         if(self.stock_symb!=""):
             try:
                 self.response = self.session.get(url,headers=self.hdr,timeout=5,cookies=self.cookies)
             except:
-                self.make_intial_nse_connection()
+                #self.make_intial_nse_connection()
+                self.sh_window.after((10 * 1000),self.make_intial_nse_connection)
+                return
     
 
     def refresh_data(self)->None:
@@ -384,7 +389,21 @@ class NSE:
         except Exception as err:
             print(self.response)
             print(err, "5")
-            self.make_intial_nse_connection()
+            #self.make_intial_nse_connection()
+            self.sh_window.after((10 * 1000),self.main_recursive)
+            return
+            #try:
+            #    self.session.close()
+            #    self.session = requests.Session()
+            #    request = self.session.get(self.url_oc, headers=self.hdr, timeout=5)
+            #    self.cookies = dict(request.cookies)
+            #    self.response = self.session.get(self.url,headers=self.hdr,timeout=5,cookies=self.cookies)
+            #    print("reset cookies")
+            #except Exception as err:
+            #    print(request)
+            #    print(response)
+            #    print(err, "5")
+            #    return
     
     def get_expiry_dates(self)->Tuple:
         if self.index_call:
@@ -397,11 +416,14 @@ class NSE:
         self.expiry_dates = json_data['records']['expiryDates']
     
     def draw_plots(self):
+        symbb = "BANKNIFTY"
         self.plot_keys = ['PCR OTM','LTP']
         mrk_type = ['-ro','--gs']
         #self.plot_keys = ['PCR OTM']
         idx: Int = -1
         plt.clf()
+        maxx = 0.0
+        minn = 10000.0
         for key in enumerate(self.plot_keys):
             idx = -1
             try:
@@ -409,22 +431,27 @@ class NSE:
             except:
                 pass
             if(idx!=-1):
-                print(key)
-                print(idx)
-                xx = self.NB_DF[idx].loc[self.NB_DF[idx]['SYMB']=='BANKNIFTY']
+                xx = self.NB_DF[idx].loc[self.NB_DF[idx]['SYMB']==symbb]
                 y_data = (xx[xx.columns[3:]].values)
                 y_dat = (y_data[0].tolist())
                 y_dat.reverse()
                 x_data = range(len(y_dat))
+                if(minn>min(y_dat)):
+                    minn = min(y_dat)
+                if(maxx<max(y_dat)):
+                    maxx = max(y_dat)
                 if self.index_call:
                     #self.graph_index.set_ydata(y_dat) 
                     #self.graph_index.set_xdata(x_data)
-                    plt.plot(x_data,y_dat,mrk_type[key[0]],label=key[1])
-                    plt.xlim([0,1.1*len(y_dat)])
-                    plt.ylim([0.,2.])
+                    plt.plot(x_data,y_dat,mrk_type[key[0]],label=key[1],markersize=1)
                     plt.legend()
+                    plt.xlim([0,1.1*len(y_dat)])
+        plt.ylim([.9*minn,1.1*maxx])
         plt.pause(.0001)
         plt.show(block = False)
+        strr = datetime.today().strftime('%Y-%m-%d')
+        plt.title(symbb+"--->"+strr)
+        plt.savefig(strr+'.pdf',dpi=300)
         
     def append_df_with_OC(self):
         self.diff_otm: List = []
@@ -441,7 +468,12 @@ class NSE:
         for stk in enumerate(self.SYMBS):
             self.stock_symb = stk[1]
             self.get_option_chain_data() 
-            json_data = self.response.json()
+            if self.response is not None:
+                try:
+                    json_data = self.response.json()
+                except:
+                    json_data = {}
+                    return
             #print(stk)
             #quote = nse.get_quote(stk)
             #print(quote['data'][0]['lastPrice'])
@@ -518,6 +550,7 @@ class NSE:
             self.diff_otm.append(diff_otm)
         
         self.live_price_normalized = list(map(mul,self.pcr_otm,self.live_prices))
+        #self.live_price_normalized = self.live_prices
         if(self.index_call):
             self.df_INDEX['SYMB'] = self.SYMBS
             self.df_INDEX['ATM'] = self.atms
